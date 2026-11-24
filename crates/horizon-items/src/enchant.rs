@@ -1213,9 +1213,11 @@ pub fn level_value(v: &Value, level: u32) -> f32 {
                         level_value(&o["numerator"], level) / d
                     }
                 }
-                "minecraft:exponent" => {
-                    level_value(&o["base"], level).powf(level_value(&o["power"], level))
-                }
+                // `(float) Math.pow(base, power)`: the double pow of the widened floats.
+                "minecraft:exponent" => horizon_core::jmath::pow(
+                    f64::from(level_value(&o["base"], level)),
+                    f64::from(level_value(&o["power"], level)),
+                ) as f32,
                 "minecraft:lookup" => {
                     let values = o.get("values").and_then(Value::as_array);
                     match values.and_then(|a| a.get(level as usize - 1)) {
@@ -1916,6 +1918,18 @@ pub mod tests {
             .calculate(5),
             45
         );
+    }
+
+    /// `LevelBasedValue.Exponent` is `(float) Math.pow(...)` over doubles. 10.8f ^ 2.3000002f is
+    /// 238.16330717791855... exactly (arbitrary-precision), which rounds to the float 0x436e29ce;
+    /// a single-precision `powf` lands on the neighbour 0x436e29cf.
+    #[test]
+    fn exponent_values_round_the_double_power_to_float() {
+        let value = level_value(
+            &json!({"type":"minecraft:exponent","base":10.8,"power":2.3000002}),
+            1,
+        );
+        assert_eq!(value.to_bits(), 0x436e_29ce);
     }
 
     #[test]
