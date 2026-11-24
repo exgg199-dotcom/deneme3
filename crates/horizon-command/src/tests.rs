@@ -1812,3 +1812,21 @@ fn a_servers_own_profiler_keeps_its_node_and_is_not_horizons() {
     assert_eq!(offered, ["open"]);
     assert!(!vanilla::game_dispatcher().has_horizon_profiler());
 }
+
+/// `Float.parseFloat` rounds once. 1 + 2^-24 (1.000000059604644775390625) is the midpoint between
+/// the floats 1.0 and 1 + 2^-23; this decimal is 1e-26 above it, so the float is 1 + 2^-23
+/// (0x3f800001). Rounding to a double first lands on the midpoint and then ties to even, 1.0.
+#[test]
+fn float_ranges_round_the_decimal_once() {
+    let mut reader = Reader::new("1.00000005960464477539062501");
+    let (min, max) = read_float_bounds(&mut reader).unwrap();
+    assert_eq!(min.map(f32::to_bits), Some(0x3f80_0001));
+    assert_eq!(max.map(f32::to_bits), Some(0x3f80_0001));
+    // The plain forms still parse, and a bad number is still refused.
+    let mut reader = Reader::new("-.5..5.");
+    assert_eq!(
+        read_float_bounds(&mut reader).unwrap(),
+        (Some(-0.5), Some(5.0))
+    );
+    assert!(read_float_bounds(&mut Reader::new("1-2")).is_err());
+}

@@ -698,9 +698,11 @@ pub fn read_double_bounds(reader: &mut Reader) -> CmdResult<DoubleRange> {
 }
 /// MinMaxBounds.FloatDegrees.fromReader (no swap check).
 pub fn read_float_bounds(reader: &mut Reader) -> CmdResult<(Option<f32>, Option<f32>)> {
+    // `Float.parseFloat` rounds the decimal once; going through a double first can
+    // round twice, so a valid number is parsed again as a float.
     read_bounds(
         reader,
-        |s| java_parse_double(s).map(|v| v as f32),
+        |s| java_parse_double(s).and_then(|_| s.parse::<f32>().ok()),
         "parsing.float.invalid",
     )
 }
