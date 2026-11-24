@@ -134,6 +134,7 @@ impl LineReader<'_> {
         let mut skip_white = true;
         let mut appended = false;
         let mut backslash = false;
+        let mut new_line = true;
         let chars = self.chars;
         loop {
             if self.pos >= chars.len() {
@@ -157,7 +158,11 @@ impl LineReader<'_> {
                 skip_white = false;
                 appended = false;
             }
-            if line.is_empty() && (c == '#' || c == '!') {
+            // Only the first character of a logical line can start a comment: after a continuation
+            // that left the buffer empty (`\\` then a newline), `#` is an ordinary character.
+            let comment_start = new_line;
+            new_line = false;
+            if comment_start && (c == '#' || c == '!') {
                 loop {
                     let &d = chars.get(self.pos)?;
                     self.pos += 1;
@@ -166,6 +171,7 @@ impl LineReader<'_> {
                     }
                 }
                 skip_white = true;
+                new_line = true;
                 continue;
             }
             if c != '\n' && c != '\r' {
@@ -175,6 +181,7 @@ impl LineReader<'_> {
             }
             if line.is_empty() {
                 skip_white = true;
+                new_line = true;
                 continue;
             }
             if self.pos >= chars.len() {
@@ -404,6 +411,17 @@ mod tests {
         assert_eq!(p.get("last"), Some("2"));
         assert_eq!(p.get("cr"), Some("1"));
         assert_eq!(p.get("next"), Some("2"));
+    }
+    #[test]
+    fn a_hash_after_a_continuation_that_left_the_line_empty_is_not_a_comment() {
+        // JDK LineReader: `isNewLine` is only true before the first character of a logical line, so
+        // the `#` that follows a lone `\` + newline is part of the key (key "#x", empty value).
+        let p = load("\\\n#x\nk=v");
+        assert_eq!(p.get("#x"), Some(""));
+        assert_eq!(p.get("k"), Some("v"));
+        // A real comment line is still skipped.
+        let p = load("# c\n! d\nk=v");
+        assert_eq!(p.map.len(), 1);
     }
     #[test]
     fn stores_sorted_and_escaped() {
