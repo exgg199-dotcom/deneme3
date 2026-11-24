@@ -11,9 +11,11 @@ use std::path::Path;
 /// Parse an installed mod version, padding omitted minor and patch components.
 /// This is also the comparison used for saved-world mod versions.
 pub fn parse_version(version: &str) -> Result<Version, semver::Error> {
-    let padded = match version.matches('.').count() {
-        0 => format!("{version}.0.0"),
-        1 => format!("{version}.0"),
+    // Only the numeric core is padded: dots in a pre-release or build suffix are not components.
+    let (core, suffix) = version.split_at(version.find(['-', '+']).unwrap_or(version.len()));
+    let padded = match core.matches('.').count() {
+        0 => format!("{core}.0.0{suffix}"),
+        1 => format!("{core}.0{suffix}"),
         _ => version.to_owned(),
     };
     Version::parse(&padded)
@@ -632,6 +634,19 @@ pub fn rewrite(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn omitted_components_are_padded_before_a_pre_release_or_build_suffix() {
+        let version = |text: &str| parse_version(text).unwrap();
+        assert_eq!(version("1.2"), Version::new(1, 2, 0));
+        assert_eq!(version("1.0-beta"), Version::parse("1.0.0-beta").unwrap());
+        assert_eq!(version("2-rc.1"), Version::parse("2.0.0-rc.1").unwrap());
+        assert_eq!(
+            version("1.2+build.5"),
+            Version::parse("1.2.0+build.5").unwrap()
+        );
+        assert!(version("1.0-beta") < version("1.0"));
+    }
 
     #[test]
     fn diagnostics_preserve_author_punctuation_without_forced_line_breaks() {
