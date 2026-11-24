@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 use crate::matchers::{IdList, RangeList};
 use crate::paths::{properties_files, resolve};
 use crate::properties::Properties;
+use crate::random_textures::decode;
 
 /// Ticks in a day.
 const DAY: i64 = 24_000;
@@ -399,10 +400,11 @@ impl Skies {
 impl WorldSky {
     /// The layers and bodies of the folder at resource path `dir`.
     fn scan(root: &ResourceSource, dir: &str) -> Self {
+        // As Java reads properties: Latin-1 when the file is not UTF-8.
         let read = |file: &str| {
-            root.read_to_string(file)
+            root.read(file)
                 .ok()
-                .map(|t| Properties::parse(&t))
+                .map(|bytes| Properties::parse(&decode(bytes)))
         };
         let feature = dir.split_once("/sky/").map_or("", |(_, w)| w);
         let mut layers: Vec<(u32, SkyLayer)> = Vec::new();
@@ -667,5 +669,21 @@ mod tests {
         assert_eq!(moon.blend, Blend::Alpha);
         assert_eq!(skies.worlds[&1].layers.len(), 1);
         assert_eq!(skies.worlds.len(), 2);
+    }
+
+    #[test]
+    fn scan_reads_a_latin_1_layer_file() {
+        let root = std::env::temp_dir().join(format!("horizon-sky-latin1-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root.join("assets/minecraft/optifine/sky/world0");
+        std::fs::create_dir_all(&dir).unwrap();
+        // `# caf\xe9` is Latin-1, not UTF-8: Java still reads the `blend` line below it.
+        std::fs::write(dir.join("sky1.properties"), b"# caf\xe9\nblend=screen\n").unwrap();
+        std::fs::write(dir.join("sky1.png"), b"png").unwrap();
+        let skies = Skies::scan(&ResourceSource::directory(root.clone()));
+        let _ = std::fs::remove_dir_all(&root);
+        let layers = &skies.worlds[&0].layers;
+        assert_eq!(layers.len(), 1);
+        assert_eq!(layers[0].blend, Blend::Screen);
     }
 }

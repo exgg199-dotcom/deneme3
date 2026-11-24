@@ -16,7 +16,7 @@ use std::fs;
 
 use crate::paths::files_under;
 use crate::properties::Properties;
-use crate::random_textures::{RandomTextures, atlas_name};
+use crate::random_textures::{RandomTextures, atlas_name, decode};
 
 pub const LENGTH: u32 = 5;
 pub const FREQUENCY: u32 = 150;
@@ -93,9 +93,10 @@ impl Blink {
     /// The blink of the texture at `stem` (its path from the root, no `.png`); `name` gives a
     /// frame's atlas name from its path.
     fn read(root: &ResourceSource, stem: &str, name: impl Fn(&str) -> String) -> Self {
+        // As Java reads properties: Latin-1 when the file is not UTF-8.
         let props = root
-            .read_to_string(&format!("{stem}_blink.properties"))
-            .map(|text| Properties::parse(&text))
+            .read(&format!("{stem}_blink.properties"))
+            .map(|bytes| Properties::parse(&decode(bytes)))
             .unwrap_or_default();
         let number = |key, default| {
             props
@@ -237,6 +238,28 @@ mod tests {
         let pig = b.get("entity/pig/pig").unwrap();
         assert_eq!((pig.length, pig.frequency), (u32::MAX - 1, u32::MAX));
         assert_eq!(pig.frame(u32::MAX - 1, 0), None, "the one open tick");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_latin_1_properties_file_keeps_its_timing() {
+        let root =
+            std::env::temp_dir().join(format!("horizon-blink-latin1-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let dir = root.join(ENTITY).join("creeper");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("creeper.png"), "").unwrap();
+        fs::write(dir.join("creeper_blink.png"), "").unwrap();
+        // `# caf\xe9` is Latin-1, not UTF-8: Java still reads the keys below it.
+        fs::write(
+            dir.join("creeper_blink.properties"),
+            b"# caf\xe9\nblinkLength=4\nblinkFrequency=100\n",
+        )
+        .unwrap();
+        let source = ResourceSource::directory(root.clone());
+        let b = Blinks::scan(&source, &RandomTextures::scan(&source));
+        let creeper = b.get("entity/creeper/creeper").unwrap();
+        assert_eq!((creeper.length, creeper.frequency), (4, 100));
         let _ = fs::remove_dir_all(root);
     }
 }
