@@ -1,0 +1,2 @@
+# Explicit platform-dependent checks; not ordinary daily coverage.
+horizon-client game::startup_cpu_tests::prepared_preflight_reports_denied_manifest_and_directory_access by-hand manual # Requires Unix filesystem permissions enforced for a non-root test user.

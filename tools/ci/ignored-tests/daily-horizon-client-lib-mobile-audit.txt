@@ -1,0 +1,6 @@
+# Prepared-data regressions retained by the mobile fork; selected explicitly by daily policy.
+horizon-client-lib an_empty_fish_hand_does_not_inherit_an_enclosing_players_item test:pufferfish_sting daily resources
+horizon-client-lib entity_nbt::piglin_live_anger_memory_tests::forgotten_owned_memory_cannot_resurrect_stale_raw_anger lib daily resources
+horizon-client-lib mobs::ai::noai_climb_cache_tests::whole_tick_pushability_tracks_climbables_with_and_without_ai lib daily resources
+horizon-client-lib mobs::piglin::guarded_memory_tick_tests::guarded_memory_keeps_zero_ttl_until_the_following_brain_tick lib daily resources
+horizon-client-lib sting_native_hook_sees_fish_full_stack_and_restores_outer_attacker test:pufferfish_sting daily resources

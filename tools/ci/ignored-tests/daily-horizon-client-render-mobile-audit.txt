@@ -1,0 +1,6 @@
+# Prepared-data regressions retained by the mobile fork; selected explicitly by daily policy.
+horizon-client-render mesher::reuse_tests::separate_ao_preserves_native_vertices_and_carries_exact_sidecar_lighting lib daily resources
+horizon-client-render mesher::state_tests::quads_keep_the_state_of_their_block lib daily resources
+horizon-client-render packs::tests::a_failed_polytone_save_preserves_existing_choices lib daily child-process
+horizon-client-render streaming::retirement_tests::closing_stream_preserves_owned_generation_before_ack lib daily resources
+horizon-client-render streaming::retirement_tests::synchronous_save_cannot_acknowledge_before_late_owned_decoration_is_saved lib daily resources

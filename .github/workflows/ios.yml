@@ -1,0 +1,184 @@
+name: ios
+# The game for iPhone and iPad, and nothing else: the Rust game cross-compiled for aarch64-apple-ios, wrapped by
+# packaging/ios/project.yml's HorizonGame target, and uploaded as an unsigned .ipa. No tests run here. The .ipa is then posted to Discord when the repository secret
+# DISCORD_IPA_WEBHOOK is set.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish an unsigned release (main branch only)
+        type: boolean
+        default: false
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.sha }}
+  cancel-in-progress: false
+env:
+  HORIZON_TELEMETRY_URL: "off"
+  IOS_TARGET: aarch64-apple-ios
+  # Public application ID embedded in the official Horizon launcher release.
+  HORIZON_MSA_CLIENT_ID: "331e08f8-172d-43b9-835a-3108c2fcdbf3"
+  # `--release` with the `fast` profile's codegen: the release profile's single codegen unit and LTO cost minutes
+  # and the unsigned bundle is a test build.
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+  CARGO_PROFILE_RELEASE_LTO: "false"
+  CARGO_INCREMENTAL: "0"
+  # The app's own minimum (project.yml); rustc and cc read it, and the Xcode step's Cargo phase sees the same.
+  IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+
+jobs:
+  ipa:
+    # The native launcher uses the iOS 26 SDK (Liquid Glass). macos-15 defaults to Xcode 16.4.
+    # MAC_RUNNER remains available for a maintainer-provided runner with Xcode 26 or newer.
+    # Standard Intel PR runners avoid the ARM hosted-pool capacity queue.
+    # Both Rust and Xcode still explicitly target ARM64 iOS below.
+    runs-on: ${{ github.event_name == 'pull_request' && 'macos-26-intel' || vars.MAC_RUNNER || 'macos-26' }}
+    timeout-minutes: 90
+    outputs:
+      artifact-id: ${{ steps.upload-ipa.outputs.artifact-id }}
+      build-attempt: ${{ github.run_attempt }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check the Apple toolchain
+        run: bash tools/ci/ios-toolchain.sh
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: stable
+          targets: ${{ env.IOS_TARGET }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        if: runner.environment == 'github-hosted'
+        with:
+          shared-key: ios-${{ env.IOS_TARGET }}
+      - name: Build the game
+        # The public Microsoft sign-in app is shared by the Rust executable and native launcher.
+        # The defaults minus `controllers` (GameController reads pads), with `audio`: project.yml's Cargo phase
+        # uses the same flags, so HORIZON_GAME_PREBUILT below finds this build.
+        run: cargo build --release --locked --target "$IOS_TARGET" -p horizon-official --no-default-features --features audio,horizon-extras
+      - name: Bundle it
+        run: |
+          set -euo pipefail
+          command -v xcodegen >/dev/null || brew install xcodegen
+          ( cd packaging/ios && xcodegen generate )
+          HORIZON_GAME_PREBUILT=1 xcodebuild -project packaging/ios/HorizonIOS.xcodeproj \
+            -target HorizonGame -configuration Release -sdk iphoneos -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf \
+            CONFIGURATION_BUILD_DIR="$PWD/build-ios" \
+            build > xcode-game-build.log 2>&1 || { tail -60 xcode-game-build.log; exit 1; }
+          python3 tools/ci/ios_release.py --stamp-app build-ios/HorizonGame.app \
+            --run-number "$GITHUB_RUN_NUMBER" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --expect-commit "$GITHUB_SHA" --client-id "$HORIZON_MSA_CLIENT_ID"
+          rm -rf game-xcode && mkdir -p game-xcode/Payload
+          cp -a build-ios/HorizonGame.app game-xcode/Payload/
+          # Zip updates an existing archive in place, retaining files removed since the last build.
+          ( cd game-xcode && zip -qry Horizon-game-unsigned.ipa Payload )
+          mv -f game-xcode/Horizon-game-unsigned.ipa Horizon-game-unsigned.ipa
+      - name: Preserve the Xcode failure log
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ios-xcode-failure-log-${{ github.run_attempt }}
+          path: xcode-game-build.log
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Audit the unsigned distributable
+        run: python3 tools/ci/ios_release.py Horizon-game-unsigned.ipa --expect-commit "$GITHUB_SHA" --run-number "$GITHUB_RUN_NUMBER" --run-attempt "$GITHUB_RUN_ATTEMPT" --require-launcher --client-id "$HORIZON_MSA_CLIENT_ID" --minimum-ios "$IPHONEOS_DEPLOYMENT_TARGET"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: upload-ipa
+        with:
+          name: horizon-ios-game-${{ github.run_attempt }}
+          path: Horizon-game-unsigned.ipa
+          retention-days: 7
+          if-no-files-found: error
+      - name: Send the .ipa to Discord
+        # Delivery is optional: the IPA is already available in the run's artifacts.
+        continue-on-error: true
+        if: github.event_name != 'pull_request' && env.DISCORD_IPA_WEBHOOK != ''
+        env:
+          DISCORD_IPA_WEBHOOK: ${{ secrets.DISCORD_IPA_WEBHOOK }}
+        run: |
+          set -uo pipefail
+          content=$(printf '%s\n' \
+            "**Horizon for iPhone and iPad, run #${GITHUB_RUN_NUMBER}**" \
+            "\`${GITHUB_REF_NAME}@${GITHUB_SHA::7}\`: an unsigned .ipa, with no assets" \
+            "🤖 Posted by \`.github/workflows/ios.yml\`, not by a person.")
+          response=$(mktemp)
+          trap 'rm -f "$response"' EXIT
+          if ! code=$(curl --connect-timeout 15 --max-time 120 -sS -o "$response" -w '%{http_code}' -X POST "$DISCORD_IPA_WEBHOOK" \
+            -F "content=$content" -F "file=@Horizon-game-unsigned.ipa;type=application/octet-stream"); then
+            echo "::warning::Could not reach Discord. The IPA is available in this run's artifacts."
+            exit 0
+          fi
+          case "$code" in
+            2*) echo "Posted the .ipa to Discord (HTTP $code)." ;;
+            404)
+              echo "::warning::Discord webhook no longer exists (HTTP 404). Replace the DISCORD_IPA_WEBHOOK repository secret. Download the IPA from this run's artifacts."
+              ;;
+            *)
+              echo "::warning::Discord delivery failed (HTTP $code). The IPA is available in this run's artifacts."
+              ;;
+          esac
+
+  release:
+    needs: ipa
+    # Publishing reads and then updates Latest. Serialize this across SHAs,
+    # while keeping completed builds queued instead of canceling a pending release.
+    concurrency:
+      group: horizon-ios-release
+      cancel-in-progress: false
+      queue: max
+    # Never grant publication privileges to PRs or builds of arbitrary branches.
+    if: >-
+      (github.repository == 'Kelly-Inc/horizon-ios' || github.repository == 'heyskylo/horizon-ios') && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # A release-only rerun inherits the successful build's original outputs.
+      - name: Check the build artifact reference
+        env:
+          IPA_ARTIFACT_ID: ${{ needs.ipa.outputs.artifact-id }}
+          IPA_BUILD_ATTEMPT: ${{ needs.ipa.outputs.build-attempt }}
+        run: |
+          if [[ ! "$IPA_ARTIFACT_ID" =~ ^[1-9][0-9]*$ || ! "$IPA_BUILD_ATTEMPT" =~ ^[1-9][0-9]*$ ]] ||
+             (( IPA_BUILD_ATTEMPT > GITHUB_RUN_ATTEMPT )); then
+            echo "::error::The successful IPA job did not provide a valid artifact reference."
+            exit 1
+          fi
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.ipa.outputs.artifact-id }}
+          path: ipa-artifact
+          merge-multiple: true
+      - name: Prepare versioned IPA and checksum
+        id: asset
+        env:
+          IPA_BUILD_ATTEMPT: ${{ needs.ipa.outputs.build-attempt }}
+        run: |
+          python3 tools/ci/ios_release.py ipa-artifact/Horizon-game-unsigned.ipa \
+            --expect-commit "$GITHUB_SHA" --run-number "$GITHUB_RUN_NUMBER" --run-attempt "$IPA_BUILD_ATTEMPT" --require-launcher --client-id "$HORIZON_MSA_CLIENT_ID" --minimum-ios "$IPHONEOS_DEPLOYMENT_TARGET" --output-dir release-assets >> "$GITHUB_OUTPUT"
+      - name: Publish unsigned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          IPA: ${{ steps.asset.outputs.ipa }}
+          CHECKSUM: ${{ steps.asset.outputs.checksum }}
+          VERSION: ${{ steps.asset.outputs.version }}
+          BUILD: ${{ steps.asset.outputs.build }}
+        run: bash tools/ci/publish-ios-release.sh

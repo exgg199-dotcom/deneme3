@@ -1,0 +1,3 @@
+# Save and recovery regressions that boot a game with prepared resources.
+horizon-client game::autosave::tests::metadata_save_reports_a_failed_player_write_without_losing_level_data lib daily resources
+horizon-client game::scoreboard::a_reset_border_overrides_both_saved_formats lib daily resources

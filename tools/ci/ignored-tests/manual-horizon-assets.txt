@@ -1,0 +1,2 @@
+# Root-lease child selected only by its parent process test.
+horizon-assets root_lease::tests::lease_child subprocess manual # selected by another_process_prevents_collection_until_it_releases

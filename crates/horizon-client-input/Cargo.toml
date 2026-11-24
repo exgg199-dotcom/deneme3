@@ -1,0 +1,33 @@
+[package]
+name = "horizon-client-input"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "The client's input layer: key bindings and their names, mouse, controllers, clipboard and window options"
+
+[dependencies]
+horizon-mod-api-macros = { path = "../horizon-mod-api-macros" }
+horizon-engine-slots = { path = "../horizon-engine-slots" }
+horizon-client-core = { path = "../horizon-client-core" }
+winit = "0.30.13"
+log = "0.4"
+png = "0.18"
+serde_json = "1.0.151"
+
+[dev-dependencies]
+horizon-theme = { path = "../horizon-theme" }
+
+# arboard has only desktop backends. Its Unix fallback otherwise pulls Wayland
+# into iOS, which has no compositor libraries; clipboard.rs already gates its use.
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
+arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+horizon-gamecontroller = { path = "../horizon-gamecontroller" }
+
+[features]
+controllers = []
+
+[lints]
+workspace = true

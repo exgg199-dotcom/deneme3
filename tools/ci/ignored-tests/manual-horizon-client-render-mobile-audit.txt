@@ -1,0 +1,15 @@
+# Explicit platform-dependent checks; not ordinary daily coverage.
+horizon-client-render datapack::tests::recreating_a_world_does_not_discard_unreadable_packs by-hand manual # Requires Unix filesystem permissions enforced for a non-root test user.
+horizon-client-render gfx::pack_post::pack_frame_tests::compute_only_depth_reads_the_current_world_after_blit_on_metal by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::pack_post::pack_frame_tests::compute_only_shadow_inputs_use_declared_formats_and_allocations_on_metal by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::pack_post::pack_frame_tests::run_executes_setup_begin_and_final_across_resize_on_metal by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::pack_post::pack_storage_tests::mismatched_storage_image_dimension_is_rejected_before_first_frame by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::pack_post::pack_storage_tests::storage_volume_compute_is_sampled_and_retains_history_on_metal by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::pack_post::pack_terrain_tests::colorless_geometry_program_preserves_its_depth_writes by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::pack_post::pack_terrain_tests::exact_shader_terrain_runs_with_four_and_five_vertex_storage_buffers by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::pack_post::pack_terrain_tests::terrain_attributes_come_from_page_vertices_and_metadata_on_metal by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::pack_post::pack_terrain_tests::terrain_lighting_policy_and_corner_ao_reach_gl_color_on_metal by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::terrain_metadata::compact_tests::mixed_layout_addresses_survive_growth_relocation_and_reuse_on_metal by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render gfx::terrain_metadata::tests::quad_sources_survive_arena_page_growth_and_release_on_metal by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render pvp::gpu_tests::custom_hit_colours_preserve_every_rgba_value by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.
+horizon-client-render skins::upload_tests::downloaded_wings_survive_cache_and_atlas_eviction_and_render_source_pixels by-hand manual # Requires an interactive/available GPU adapter; run explicitly on macOS with Metal.

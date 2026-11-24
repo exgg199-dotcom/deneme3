@@ -1,0 +1,2 @@
+# File-lock lifetime crosses a process boundary.
+horizon-assets root_lease::tests::another_process_prevents_collection_until_it_releases lib daily child-process

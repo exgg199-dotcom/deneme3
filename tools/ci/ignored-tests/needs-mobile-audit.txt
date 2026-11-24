@@ -1,0 +1,5 @@
+# Private test inputs not contained in ordinary prepared resources.
+horizon-client game::entity_model_loading_tests::equipment_assets_native_fixture HORIZON_EQUIPMENT_FIXTURE_ROOT needs # Also supply HORIZON_EQUIPMENT_FIXTURE_OUTPUT; the parity driver provides base/merged roots and a private output path.
+horizon-client-lib world_links::tests::compare_java_reference_matrix HORIZON_WORLD_LINK_ORACLE needs # Private Java PathAllowList JSONL, never committed.
+horizon-client-render gfx::pack_post::tests::real_packs_build_or_report_unsupported_inputs_on_metal HORIZON_TEST_SHADER_PACKS needs # Private shader-pack archives and a working Metal adapter on macOS.
+horizon-shaders post::tests::real_pack_terrain_lighting_policy HORIZON_TEST_TERRAIN_PACK needs # A private shader-pack zip whose known lighting policy is checked.
