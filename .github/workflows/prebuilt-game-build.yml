@@ -75,7 +75,7 @@ jobs:
           ref: ${{ inputs.commit }}
       - id: rust
         run: echo "version=$(cat tools/ci/rust-version)" >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca
         with:
           toolchain: ${{ steps.rust.outputs.version }}-${{ matrix.target }}
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
